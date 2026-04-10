@@ -1,54 +1,135 @@
-# Error Codes / 异常代码
+# 异常代码与处理 / Error Codes
 
-## Inbound Exceptions / 入库异常
+## 入库异常 / Inbound Exceptions
 
-| Code | Description | Solution |
-|------|-------------|----------|
-| E101 | BCR scan exception | Conveyor rollback → exception port |
-| E102 | Over dimension | Conveyor rollback → exception port |
-| E103 | Business exception | Conveyor rollback → exception port |
-| E104 | Duplicate inbound | Reject, notify Prime |
-| E105 | No location available | Exception port → manual handling |
-| E106 | Item family not allowed | Transfer to BCP location |
-| E107 | No available location | Transfer to floor location |
-| E108 | Duplicate pallet in inventory | Transfer to floor, investigate |
-| E109 | Qty exceeds footprint | Transfer to floor, update footprint |
+| 异常码 | 描述 | 处理方案 |
+|--------|------|----------|
+| E101 | BCR扫码异常 | 输送线回退 → 异常口 |
+| E102 | 超高超宽 | 输送线回退 → 异常口 |
+| E103 | 业务异常 | 输送线回退 → 异常口 |
+| E104 | 重复入库 | 回告Prime拒绝 |
+| E105 | 库位已满 | 异常口 → 人工处理 |
+| E106 | 物料类型不允许 | 转BCP排位，检查item family |
+| E107 | 无可用库位 | 转入库旁地面排位 |
+| E108 | 相同托盘号库存 | 转地面排位，调查差异 |
+| E109 | 数量大于板规 | 转地面排位，维护footprint |
+| E110 | 入库时卡托盘 | 复位/强制失败/手动完成 |
+| E111 | BCR任务不存在 | 重新扫码下发或转BCP排位 |
+| E112 | BCR扫不到码 | 调换一面扫描或转BCP排位 |
 
-## Outbound Exceptions / 出库异常
+### 处理流程
 
-| Code | Description | Solution |
-|------|-------------|----------|
-| E201 | Quality status change | Continue → return move_error |
-| E202 | Cancel failed | Continue → return move_error |
-| E203 | Pallet exception | Exception port → manual |
-| E204 | No inventory found | Return "no inventory" to Prime |
-| E205 | No matching inventory | Check Prime-WES inventory match |
+1. WES下发输送线回退任务给WCS
+2. WCS转发给PLC执行回退
+3. 回退完成后，WES向IAC下发去异常口的搬运任务
+4. 异常口大屏显示异常信息
+5. 人工处理完成后，WES自动下发入库induction
 
-## Task Status / 任务状态
+---
 
-| Status | Cancel | Edit Priority | Force Complete |
-|--------|--------|---------------|-----------------|
-| New / 新建 | ✅ | ✅ | ✅ |
-| Accepted / 受理 | ❌ | ❌ | ✅ |
-| Executing / 执行 | ❌ | ❌ | ✅ |
-| Completed / 完成 | ❌ | ❌ | ❌ |
-| Failed / 失败 | ❌ | ❌ | ❌ |
+## 出库异常 / Outbound Exceptions
 
-## System Errors / 系统异常
+| 异常码 | 描述 | 处理方案 |
+|--------|------|----------|
+| E201 | 质量状态变更 | 继续执行 → 回传move_error |
+| E202 | 取消失败 | 继续执行 → 回传move_error |
+| E203 | 托盘异常 | 异常口 → 人工处理 |
+| E204 | 找不到库存 | 回告Prime无库存 |
+| E205 | 没有匹配库存 | 检查Prime库存比对 |
+| E206 | 外深位托盘需倒库 | 先执行倒库再出库 |
+| E207 | 出库口被占用 | 等待或切换出库口 |
 
-| Code | Description |
-|------|-------------|
-| E301 | Prime connection failed |
-| E302 | IAC connection failed |
-| E303 | WCS connection failed |
-| E304 | PLC communication error |
-| E305 | Database error |
-| E306 | BCR equipment error |
+### 屏幕显示
 
-## Virtual Container / 虚拟容器
+- 托盘号
+- 异常原因："出库下架中变更质量状态" / "取消失败"
 
-| Code | Description |
-|------|-------------|
-| E401 | Location group has active task |
-| E402 | Location group occupied |
-| E403 | Virtual pallet name conflict |
+---
+
+## 任务状态 / Task Status
+
+| 任务状态 | 可取消 | 可修改优先级 | 可强制完成 | 说明 |
+|----------|--------|-------------|------------|------|
+| 新建 / New | ✅ | ✅ | ✅ | 刚创建的任务 |
+| 受理 / Accepted | ❌ | ❌ | ✅ | 已下发设备执行 |
+| 执行 / Executing | ❌ | ❌ | ✅ | 正在执行中 |
+| 完成 / Completed | ❌ | ❌ | ❌ | 已完成 |
+| 失败 / Failed | ❌ | ❌ | ❌ | 执行失败 |
+
+---
+
+## 系统异常 / System Errors
+
+| 异常码 | 描述 | 可能原因 |
+|--------|------|----------|
+| E301 | Prime连接失败 | 网络/服务器 |
+| E302 | IAC连接失败 | 网络/AGV调度 |
+| E303 | WCS连接失败 | 网络/设备控制 |
+| E304 | PLC通信异常 | 传感器/线路 |
+| E305 | 数据库异常 | 数据库连接 |
+| E306 | BCR设备异常 | 镜头/光源/条码损坏 |
+| E307 | 通信超时 | 网络延迟 |
+| E308 | 任务超时 | 设备故障 |
+
+### 安全急停
+
+- 四穿因安全急停后一键恢复
+- 自动算轨
+- WCS/SCADA需要权限控制
+- 急停记录需保存
+
+---
+
+## 虚拟容器异常 / Virtual Container Exceptions
+
+| 异常码 | 描述 | 处理方案 |
+|--------|------|----------|
+| E401 | 库位组有任务，无法创建 | 检查任务状态 |
+| E402 | 库位组已被占用 | 等待释放 |
+| E403 | 虚拟托盘命名冲突 | 手动指定名称 |
+| E404 | 锁定失败 | 人工介入 |
+
+### 创建流程
+
+1. 运维选择空闲货位
+2. WES搜索货位 → 创建虚拟托盘 ASRS-virtual-0001
+3. 系统锁闭整个库位组
+4. 现场放空托盘到指定货位
+5. 四穿车顶起托盘时自动解锁
+
+### 命名规则
+
+- 前缀：ASRS-virtual-
+- 后缀：数值依次递增
+
+---
+
+## 设备故障代码 / Equipment Error Codes
+
+### 四穿车故障
+
+| 代码 | 描述 |
+|------|------|
+| SH-01 | 急停被按下 |
+| SH-02 | 驱动器故障 |
+| SH-03 | 电机过热 |
+| SH-04 | 位置传感器异常 |
+| SH-05 | 通信中断 |
+
+### 输送带故障
+
+| 代码 | 描述 |
+|------|------|
+| CV-01 | 电机故障 |
+| CV-02 | 变频器故障 |
+| CV-03 | 传感器异常 |
+| CV-04 | 跑偏报警 |
+
+### PLC故障
+
+| 代码 | 描述 |
+|------|------|
+| PLC-01 | CPU异常 |
+| PLC-02 | 通信模块异常 |
+| PLC-03 | 输入点异常 |
+| PLC-04 | 输出点异常 |
