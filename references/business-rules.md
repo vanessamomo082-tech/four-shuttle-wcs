@@ -1,113 +1,81 @@
-# 业务规则详解
+# Business Rules / 业务规则
 
-## 上架策略
+## Putaway Strategy / 上架策略
 
-### 规则优先级
+### Priority / 优先级
 
-1. **同 SKU 同批次同库位组**：先找在库/在途库存的外深位
-2. **空库位组最深层**：无匹配时找空位组最深层
-3. **异常处理**：找不到库位则搬运到异常工作站
+1. Same SKU + Same Batch + Same Location Group (同SKU同批次同库位组)
+2. Empty Location Group - Deepest Position (空库位组最深层)
+3. Exception - Transfer to Exception Station (异常 → 异常站)
 
-### 特殊规则
+### Special Rules / 特殊规则
 
-- **退料优先**：单深位
-- **非退料优先**：多深位
-- **物料类型配置**：是否允许入四穿库 + 推荐层
+- **退料 / Returns**: 优先单深位 / Single-deep preferred
+- **非退料 / Non-returns**: 优先多深位 / Multi-deep preferred
+- **物料类型 / Item Family**: 配置是否允许入四穿库
 
-### 货位锁定
+### Location Lock / 货位锁定
 
 - 创建虚拟容器时锁闭整个库位组
 - 四穿车顶起托盘时自动解锁
 
 ---
 
-## 分配策略
+## Allocation Strategy / 分配策略
 
-### 出库分配顺序
+### Outbound Priority / 出库优先级
 
-1. **Prime 指定托盘号**：严格按照托盘号分配（忽略质量状态）
-2. **指定 Batch + Footprint Code**：按 MANDTE 从小到大排序
-3. **仅指定 Footprint Code**：按 MANDTE 排序，找最早批次
+1. **Prime指定托盘号**: 严格按照托盘号分配
+2. **指定Batch + Footprint Code**: 按MANDTE从小到大
+3. **仅指定Footprint Code**: 按MANDTE排序，找最早批次
 
-### 质量状态处理
+### Quality Status / 质量状态
 
-- 状态=U：正常出库，回传 pick_confirm
-- 状态≠U：标记异常，回传 move_error，显示"出库下架中变更质量状态"
+- Status = U: 正常出库，回传pick_confirm
+- Status ≠ U: 标记异常，回传move_error
 
 ---
 
-## 库存状态变更
+## Inventory Status / 库存状态
 
-### 入库
+### Inbound / 入库
 
-1. WES 接收入库单 → 库存添加至上架暂存区
-2. 四穿到达终点 → 库存移动至密集存储区
+1. WES接收 → 库存至上架暂存区
+2. 四穿到达终点 → 库存移至密集存储区
 
-### 出库
+### Outbound / 出库
 
-1. WCS 调度四穿顶起托盘 → 库存移动至下架暂存区
+1. WCS顶起托盘 → 库存移至下架暂存区
 2. 到达出库工作站前端 → 任务完结
 3. 光电感应为空 → 扣减库存
 
-### 异常
-
-- BCR 通过但未推荐库位 → 记上架暂存区 → 异常回退 → 扣减
-
 ---
 
-## 批次规则
+## Batch Rules / 批次规则
 
-### 同库位组要求
-
-- 同一库位组只存放相同 SKU 相同批次
+- 同一库位组只存放相同SKU相同批次
 - 超水位提示不允许入库
 - 预留空位用于倒库
 
-### 批次属性
+### Batch Attributes / 批次属性
 
-- LOTNUM（批号）
-- FTPCOD（Footprint Code）
-- MANDTE（生产日期）
-- INVSTS（库存状态）
-- EXPIRE_DTE（过期日期）
-- 货主（pc04-pc09 共6个）
+- LOTNUM (批号)
+- FTPCOD (Footprint Code)
+- MANDTE (生产日期)
+- INVSTS (库存状态)
+- EXPIRE_DTE (过期日期)
+- 货主 (pc04-pc09)
 
 ---
 
-## 任务优先级
-
-### 优先级规则
+## Task Priority / 任务优先级
 
 - 数值越低，优先级越高
 - 新建状态可修改优先级
-- 受理/执行状态部分可取消
+- 范围: 1-50
 
-### 优先级升级（IAC）
+### Priority Upgrade (IAC) / 优先级升级
 
-- 范围：1-50
-- 开始：50，结束：1
-- 步长：每10分钟降2级
-- 公式：当前优先级 = 开始优先级 - (已升级次数 × 步长)
-
----
-
-## 虚拟容器
-
-### 创建流程
-
-1. 运维选择空闲货位
-2. WES 搜索货位 → 创建虚拟托盘 ASRS-virtual-0001
-3. 系统锁闭整个库位组
-4. 现场放空托盘到指定货位
-5. 四穿车顶起托盘时自动解锁
-
-### 命名规则
-
-- 前缀：ASRS-virtual-
-- 后缀：数值依次递增
-
-### 锁定逻辑
-
-- 上架/下架不再推荐该库位组
-- 锁闭前有新建下架任务 → 允许创建虚拟托盘
-- 托盘离开库位组后恢复推荐
+- Range: 1-50
+- Start: 50, End: 1
+- Step: 每10分钟降2级
